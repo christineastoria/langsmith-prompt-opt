@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Environment
+.env
+
+# Generated data (run src/setup_db.py to recreate)
+data/shop.db
+data/chroma/
+
+# Generated eval splits (run src/eval/dataset.py to recreate)
+data/eval/
+
+# Results
+results/
