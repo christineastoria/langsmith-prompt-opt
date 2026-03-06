@@ -262,149 +262,117 @@ Our recommendation is based on two practical principles:
 
 ## Goal
 
-Measure how system prompt changes affect **which subagent the system calls**.
+Show that system prompt improvements measurably improve **which subagents a multi-agent concierge calls, in what order, and whether it hallucinates**.
 
-Example:
+The demo system is a personal shopping concierge built with [Deep Agents](https://github.com/langchain-ai/deepagents) with six specialized subagents:
 
-User question → system must choose:
+| Subagent | Data it owns |
+|---|---|
+| `product_catalog_agent` | order history, delivery status, prices, SKUs, internal reviews |
+| `policy_and_sizing_agent` | return windows, brand-specific rules, sizing guides, non-returnable items |
+| `cart_and_orders_agent` | executes actions — add to cart, initiate return, wishlist (needs real SKU/order_id) |
+| `product_comparison_agent` | structures comparisons once catalog data is available |
+| `product_discovery_agent` | searches catalog by category or criteria |
+| `web_research_agent` | external prices, reviews, competitor data |
 
-- retrieval agent
-- coding agent
-- browsing agent
-
-Incorrect routing is a common real-world failure.
-
----
-
-## Dataset
-
-Construct a dataset of routing examples.
-
-Each example:
-
-
-{
-"query": "...",
-"expected_agent": "retrieval_agent"
-}
-
-
-Target size:
-
-- train: ~50
-- validation: ~50
-- test: ~100
-
----
-
-## Evaluation metric
-
-Primary metric:
-
-**routing accuracy**
-
-
-predicted_agent == expected_agent
-
-
-Secondary metrics:
-
-- abstention correctness
-- fallback usage
-
----
-
-## Hypothesis
-
-System prompt clarity significantly affects routing accuracy.
-
----
-
-## Experiment steps
-
-1. Baseline system prompt
-2. Modify routing instructions
-3. Evaluate on validation
-4. Measure regressions
-
----
-
-## Expected outputs
-
-
-baseline accuracy
-optimized accuracy
-confusion matrix across agents
-
-
----
-
-# Experiment 2 — Tool Description Optimization
-
-## Goal
-
-Improve correctness of tool usage for a specific failing tool.
-
-Example:
-
-A tool frequently fails due to:
-
-- incorrect arguments
-- incomplete parameters
-- misuse of tool purpose
+Baseline system prompt: `"You are a personal shopping concierge. Help customers find products, answer questions, and manage their orders."` — one sentence, no routing guidance.
 
 ---
 
 ## Dataset
 
-Examples requiring the tool.
+90 handcrafted examples across 7 task types, split 54 train / 18 val / 18 test.
 
+**Task types:**
 
-{
-"query": "...",
-"expected_tool": "search_tool",
-"expected_args": {...}
-}
+| Type | Count | What it tests |
+|---|---|---|
+| `price_assessment` | 10 | catalog price history + competitor comparison |
+| `return_eligibility` | 15 | order date from catalog + policy rules |
+| `warranty_lookup` | 8 | purchase date + brand warranty terms |
+| `product_comparison` | 12 | catalog specs → comparison agent structures analysis |
+| `discovery_with_validation` | 10 | catalog candidates + external review validation |
+| `sizing_with_context` | 12 | policy-specific sizing guidance (not general knowledge) |
+| `action_with_prerequisite` | 23 | catalog lookup → (eligibility check) → cart action |
 
+**Three dataset splits:**
+- **Train** — what the optimizer sees. Used to identify failure patterns and generate a better prompt.
+- **Val** — development benchmark. Used after each optimization to measure improvement. Never shown to the optimizer.
+- **Test** — locked until the end. Evaluated exactly once to report the final honest result.
 
----
+**Edge cases** (`shopping-concierge-routing-edge`, 10 examples) live in a separate dataset, added progressively as optimization advances. These test harder reasoning: policy exceptions, cross-user references, ambiguous product references, price match edge cases. They are never part of train/val/test splits.
 
-## Evaluation
+### Key dataset design decisions
 
-Metrics:
+**`cannot_complete_without`** is tight — only agents that hold ground truth data without which a correct answer requires hallucination. If an agent is helpful but the LLM could answer correctly from general knowledge, it is not listed here.
 
-1. correct tool selected
-2. arguments valid
-3. tool called at correct step
+**`requires_sequencing: True`** only when the cart action literally needs the output of the catalog call (real order_id or SKU). The cart agent cannot hallucinate these. Policy can always be called in parallel with catalog — it is never in `expected_sequence`.
 
----
+**`expected_agents`** = exactly `cannot_complete_without` ∪ agents in `expected_sequence`. No others. If an agent is not required and not sequenced, it is not expected.
 
-## Hypothesis
+**No cart agent when the answer is "no"**: if return eligibility fails (non-returnable, out of window, not yet delivered, already returned), `cart_and_orders_agent` is not in expected_agents or sequence. The correct behavior is to stop at the eligibility check and inform the customer.
 
-Clarifying tool descriptions and adding examples improves tool call correctness.
-
----
-
-## Experiment steps
-
-1. Baseline tool description
-2. Add argument examples
-3. Add usage constraints
-4. Evaluate changes
+**`required_info` contains only verifiable facts** — specific prices, delivery dates, SKUs, policy rules. For discovery examples that require web research, the web result is deliberately excluded from `required_info` (it is inherently variable at runtime). The web agent call is enforced by `critical_agents_called` instead.
 
 ---
 
-# Optimizer Agent Workflow
+## Evaluators
 
-Prompt optimization can be implemented as an **optimizer agent**.
+Three evaluators, each catching different failure modes:
 
-Responsibilities:
+### 1. `task_completeness` (LLM-as-judge, Claude Haiku)
+Did the final answer contain the `required_info`? Catches hallucination: the agent may call the right agents but still produce a wrong answer. The judge compares the agent's output to the list of specific facts the answer must include.
 
-1. Read LangSmith evaluation results
-2. Identify failure clusters
-3. Propose targeted prompt edits
-4. Run experiments
-5. Produce prompt diffs and metric changes
+### 2. `critical_agents_called` (code)
+Were the agents in `cannot_complete_without` actually called? These are the agents that hold ground truth. Without them, any correct-sounding answer is hallucinated. This is a deterministic check against the trajectory — no LLM involved.
+
+### 3. `sequence_respected` (code)
+For `action_with_prerequisite` tasks: did `product_catalog_agent` appear before `cart_and_orders_agent` in the trajectory? The cart agent needs a real SKU or order_id — it cannot invent one. This enforces the one hard ordering constraint. It is only computed for the subset of examples where `requires_sequencing: True` (7–8 of 18 val examples).
+
+**Why all three together:**
+- An agent can call the right agents and still hallucinate → `task_completeness` catches this
+- An agent can give a plausible answer without calling the critical agents → `critical_agents_called` catches this
+- An agent can call all the right agents in the wrong order → `sequence_respected` catches this
+
+---
+
+## Results
+
+| Metric | Baseline | Optimized | Δ |
+|---|---|---|---|
+| `task_completeness` | 0.50 | **0.61** | +0.11 |
+| `critical_agents_called` | 0.64 | **0.94** | +0.30 |
+| `sequence_respected` | 0.29 | **0.57** | +0.28 |
+
+The biggest gain is `critical_agents_called` (+0.30): the optimized prompt explicitly tells the orchestrator which agent owns which data, so it stops answering from general knowledge on questions that require a live lookup. The minimum score went from 0 to 0.5 — the prompt is no longer completely missing on any example.
+
+---
+
+# Optimizer Agent Pipeline
+
+The optimizer is a **LangGraph StateGraph** — a 5-node pipeline where each node has a defined responsibility and the reflection step runs on a stronger model.
+
+```
+pull_failures → analyze → reflect → generate → review → save
+```
+
+| Node | Model | What it does |
+|---|---|---|
+| `pull_failures` | — | Queries LangSmith for all baseline-train run scores via the Client API |
+| `analyze` | claude-sonnet-4-6 | Identifies failure patterns across task types |
+| `reflect` | **claude-opus-4-6** | Separates general patterns from example-specific overfitting risks |
+| `generate` | **claude-opus-4-6** | Writes the optimized prompt from general patterns only |
+| `review` | **claude-opus-4-6** | Final pass: strips anything that hardcodes training-specific details |
+| `save` | — | Writes `prompts/optimized.md` |
+
+**The reflection node is structurally separate** — not just another message in the same chain. Its job is to be a strict filter: for each insight from the analysis, it decides "does this generalize to unseen queries of the same type, or is it just patching a specific example?" Only insights that pass this filter are passed to the generate node.
+
+**Human prior**: the optimizer is given a brief routing principles document (what makes routing prompts effective in general) as context — not a specific example prompt to copy. This anchors the optimizer toward known-good patterns without creating a risk of copying the prior.
+
+**Anti-overfit mechanisms:**
+1. The reflect node explicitly discards example-specific insights
+2. The generate node is instructed not to hardcode product names, users, SKUs, or prices
+3. The review node does a final check before saving
 
 ---
 
@@ -451,80 +419,56 @@ Use:
 
 # Repository Structure
 
-
-prompt-optimization-survey/
-
-data/
-routing_train.jsonl
-routing_val.jsonl
-routing_test.jsonl
-
-tool_train.jsonl
-tool_val.jsonl
-tool_test.jsonl
-
-prompts/
-system_prompt.md
-tool_descriptions.md
-
-src/
-run_eval.py
-run_routing_eval.py
-run_tool_eval.py
-optimizer_agent.py
-run_optimize.py
-
-results/
-routing_baseline.json
-routing_optimized.json
-tool_baseline.json
-tool_optimized.json
+```
+prompt-opt-demo/
+├── data/
+│   ├── shop.db               # SQLite: products, orders, users, reviews (generated by setup_db.py)
+│   ├── chroma/               # vector store for product discovery
+│   └── eval/
+│       ├── train.jsonl       # 54 examples
+│       ├── val.jsonl         # 18 examples
+│       └── test.jsonl        # 18 examples (locked until final eval)
+│
+├── prompts/
+│   ├── baseline.md           # starting prompt (1 sentence)
+│   └── optimized.md          # optimizer output
+│
+└── src/
+    ├── agents/               # Deep Agents orchestrator + 6 subagents
+    ├── tools/                # DB tools, web search (Tavily), catalog tools
+    ├── eval/
+    │   ├── dataset.py        # 90 core examples, upload to LangSmith train/val/test
+    │   ├── dataset_edge.py   # 10 edge cases, separate dataset, added progressively
+    │   ├── evaluator.py      # task_completeness, critical_agents_called, sequence_respected
+    │   ├── run_function.py   # wraps agent for LangSmith evaluate(), captures trajectory
+    │   └── run_eval.py       # entry point: --prompt baseline|optimized --split train|val|test
+    └── optimizer/
+        └── run_optimizer.py  # LangGraph 5-node optimizer pipeline
+```
 
 
 ---
 
-# Coding TODOs
+# Status & TODOs
 
-## Dataset creation
+## Done
+- [x] Shopping concierge with 6 subagents (Deep Agents)
+- [x] 90-example dataset across 7 task types, uploaded to LangSmith (train/val/test)
+- [x] 10 edge case examples in separate dataset
+- [x] Three evaluators: task_completeness (LLM judge), critical_agents_called, sequence_respected
+- [x] Trajectory capture from Deep Agents stream (correct chunk structure)
+- [x] Baseline eval on train + val
+- [x] LangGraph optimizer pipeline (5 nodes, reflection on opus)
+- [x] Optimized prompt generated and saved
+- [x] Optimized eval on val: 0.50→0.61 / 0.64→0.94 / 0.29→0.57
 
-- [ ] Create routing dataset
-- [ ] Create tool usage dataset
-- [ ] Ensure examples represent real production failures
-
----
-
-## Evaluation
-
-- [ ] Implement routing accuracy evaluator
-- [ ] Implement tool usage evaluator
-- [ ] Add confusion matrix for routing
-- [ ] Add argument validation for tool calls
-
----
-
-## Experiment runner
-
-- [ ] Baseline evaluation script
-- [ ] Prompt version tracking
-- [ ] Regression detection
-
----
-
-## Optimizer agent
-
-- [ ] Read LangSmith eval results
-- [ ] Cluster failure cases
-- [ ] Generate prompt edits
-- [ ] Re-run evaluation automatically
-
----
-
-# TODO (Blog / Writeup)
-
-- [ ] Add routing experiment results
-- [ ] Add tool description experiment results
-- [ ] Add prompt diff examples
-- [ ] Add graphs showing performance improvement
+## Remaining
+- [ ] Run optimized on train (sanity check — should not be lower than val, would flag overfitting)
+- [ ] Second optimization round (if val still has room)
+- [ ] Final eval on test set (run exactly once)
+- [ ] Prompt diff write-up: what changed and why
+- [ ] Add graphs (baseline vs optimized across all three metrics)
+- [ ] Edge case eval: run both prompts against shopping-concierge-routing-edge
 
 ---
 
