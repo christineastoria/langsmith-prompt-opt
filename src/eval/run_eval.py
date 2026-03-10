@@ -30,10 +30,11 @@ def main():
     parser.add_argument("--prompt", default="baseline", help="Prompt variant (baseline | optimized)")
     parser.add_argument("--split", default="val", help="Dataset split (train | val | test)")
     parser.add_argument("--prefix", default=None, help="Experiment name prefix")
+    parser.add_argument("--suffix", default="", help="Dataset name suffix, e.g. '-v2' to use shopping-concierge-routing-v2-train")
     args = parser.parse_args()
 
-    dataset_name = f"{DATASET_NAME}-{args.split}"
-    prefix = args.prefix or f"{args.prompt}-{args.split}"
+    dataset_name = f"{DATASET_NAME}{args.suffix}-{args.split}"
+    prefix = args.prefix or f"{args.prompt}-{args.split}{args.suffix}"
 
     print(f"\nEvaluating '{args.prompt}' prompt on '{dataset_name}'...")
 
@@ -42,7 +43,7 @@ def main():
         data=dataset_name,
         evaluators=[task_completeness, critical_agents_called, sequence_respected],
         experiment_prefix=prefix,
-        max_concurrency=2,
+        max_concurrency=1,
     )
 
     # Print summary

@@ -2,7 +2,7 @@
 Prompt optimizer — LangGraph pipeline with a dedicated reflection node.
 
 Nodes:
-  pull_failures   → query LangSmith for low-scoring train runs
+  pull_eval_results → query LangSmith for low-scoring train runs
   analyze         → claude-sonnet-4-6: broad failure pattern analysis
   reflect         → claude-opus-4-6:   what generalizes vs. overfits?
   generate        → claude-opus-4-6:   write the optimized prompt
@@ -35,30 +35,55 @@ SONNET = "claude-sonnet-4-6"
 OPUS = "claude-opus-4-6"
 
 # ---------------------------------------------------------------------------
-# Human prior: general routing principles.
-# Abstract enough that it anchors without causing overfitting to train examples.
+# Evaluation metrics — what each metric's failures indicate about prompt gaps.
+# Customize this for your eval setup.
+# ---------------------------------------------------------------------------
+EVAL_METRICS = {
+    "task_completeness": (
+        "The agent's response did not fully satisfy what the user needed. "
+        "Ask: what does the prompt fail to say about how to handle this task type? "
+        "What decision logic, eligibility check, or response behavior is missing or ambiguous?"
+    ),
+    "critical_agents_called": (
+        "The agent skipped one or more agents required to complete the task. "
+        "Ask: what does the prompt fail to communicate about which agents are the sole source "
+        "of truth for which data or actions? Are ordering constraints missing — e.g., the agent "
+        "skipped a required lookup before attempting an action?"
+    ),
+    "sequence_respected": (
+        "The agent called agents in the wrong order, or called unnecessary agents when it should "
+        "have stopped early. Ask: what does the prompt fail to say about when to stop, what to "
+        "check first, or when one result should gate the next step?"
+    ),
+}
+
+# ---------------------------------------------------------------------------
+# Human prior: general routing principles for multi-agent systems.
+# NOTE: Only relevant when optimizing prompts for multi-agent routing tasks.
 # ---------------------------------------------------------------------------
 ROUTING_PRINCIPLES = """\
-Characteristics of effective routing prompts for multi-agent shopping concierges:
+Characteristics of effective routing prompts for multi-agent systems:
 
-1. Each subagent is described by what it uniquely HOLDS (the data it owns),
-   not just what it does. "Call X for order history" is more useful than "X handles orders".
+1. Each agent is described by what it uniquely HOLDS (the data or capability it owns),
+   not just what it does. "Call X to retrieve Y" is more useful than "X handles Y-related tasks".
 
 2. Decision criteria are explicit: when is each agent NECESSARY vs. optional?
-   The agent must understand which agents are the ground-truth holders for which facts.
+   The orchestrator must know which agents are the sole source of truth for which facts.
 
 3. Ordering constraints are stated only where they genuinely matter for correctness —
-   e.g., you need a real SKU/order_id before a cart action; you can't hallucinate one.
+   i.e., when a downstream step requires verified output from an upstream step to function at all.
 
-4. The prompt distinguishes between "complete the action" and "check eligibility first".
-   Some requests end at the eligibility check; not every query reaches a cart action.
+4. The prompt distinguishes "check eligibility / retrieve state" from "execute an action".
+   Some requests end at the check; not every query reaches execution. If the check reveals
+   the action is impossible, stop early and explain — do not call the action agent.
 
-5. For queries requiring external data (competitor prices, external reviews), the prompt
-   makes clear that internal catalog data alone is insufficient.
+5. For queries requiring data that exists outside the internal system, the prompt makes
+   clear that internal data alone is insufficient and which agent handles external lookups.
 
 Hard constraints for generated prompts:
-- Do NOT hardcode specific product names, user names, SKUs, or prices.
+- Do NOT hardcode specific entities, identifiers, or values from the training examples.
 - Every rule must generalize to unseen queries of the same type, not just training examples.
+- Use ONLY the agent names and tool names that appear in the training data. Do not rename, merge, or invent agents or tools.
 """
 
 # ---------------------------------------------------------------------------
@@ -102,7 +127,7 @@ def load_train_index() -> dict:
 
 
 def pull_and_format_results(client: Client, experiment_name: str) -> str:
-    """Pull all train eval runs, format with scores + expected routing."""
+    """Pull all train eval runs with full inputs, reference outputs, actual outputs, and scores."""
     print(f"  Querying experiment '{experiment_name}'...")
     runs = list(client.list_runs(
         project_name=experiment_name,
@@ -117,24 +142,50 @@ def pull_and_format_results(client: Client, experiment_name: str) -> str:
     for run in runs:
         feedbacks = list(client.list_feedback(run_ids=[str(run.id)]))
         scores = {f.key: f.score for f in feedbacks if f.score is not None}
+        comments = {f.key: f.comment for f in feedbacks if f.comment}
 
-        query = (run.inputs or {}).get("query", "?")
-        email = (run.inputs or {}).get("user_email", "?")
-        expected = train_index.get((query, email), {})
-
-        any_fail = any(
-            scores.get(k, 1.0) < 0.6
-            for k in ["task_completeness", "critical_agents_called"]
-        )
-        status = "FAIL" if any_fail else "pass"
+        inputs = run.inputs or {}
+        outputs = run.outputs or {}
+        query = inputs.get("query", "?")
+        email = inputs.get("user_email", "?")
+        ref = train_index.get((query, email), {})
 
         score_str = "  ".join(f"{k}: {v:.2f}" for k, v in sorted(scores.items()))
+
+        actual_agents = outputs.get("agents_called", [])
+        actual_response = (outputs.get("final_output") or "").strip()
+        # Truncate long responses but keep enough for the optimizer to reason about
+        if len(actual_response) > 400:
+            actual_response = actual_response[:400] + "…"
+
+        ref_agents_raw = ref.get("cannot_complete_without", [])
+        expected_seq = ref.get("expected_sequence", [])
+
+        # Format OR groups (nested lists) for human-readable optimizer input
+        def _fmt_critical(agents: list) -> str:
+            parts = []
+            for item in agents:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, list):
+                    parts.append(f"({' OR '.join(item)})")
+            return ", ".join(parts) or "none"
+
+        comment_lines = "  ".join(
+            f"\n  judge[{k}]: {v}" for k, v in sorted(comments.items()) if v
+        )
+
         lines.append(
-            f"[{status}] \"{query}\" ({email})\n"
+            f"query: \"{query}\" ({email})\n"
+            f"  task_type: {ref.get('task_type', '?')}\n"
             f"  scores: {score_str}\n"
-            f"  task_type: {expected.get('task_type', '?')}\n"
-            f"  critical_agents: {', '.join(expected.get('cannot_complete_without', []))}\n"
-            f"  failure_mode: {expected.get('failure_mode', '?')}"
+            f"  reference — critical_agents: {_fmt_critical(ref_agents_raw)}"
+            + (f"  sequence: {' → '.join(expected_seq)}" if expected_seq else "") + "\n"
+            f"  reference — required_info: {'; '.join(ref.get('required_info', []))}\n"
+            f"  reference — failure_mode: {ref.get('failure_mode', '?')}\n"
+            f"  actual    — agents_called: {', '.join(actual_agents) or 'none'}\n"
+            f"  actual    — response: {actual_response or '(empty)'}"
+            + comment_lines
         )
 
     return "\n\n".join(lines)
@@ -144,8 +195,8 @@ def pull_and_format_results(client: Client, experiment_name: str) -> str:
 # Graph nodes
 # ---------------------------------------------------------------------------
 
-def node_pull_failures(state: OptimizerState) -> dict:
-    print("\n[pull_failures] Querying LangSmith...")
+def node_pull_eval_results(state: OptimizerState) -> dict:
+    print("\n[pull_eval_results] Pulling all eval results from LangSmith...")
     client = Client()
 
     experiment = state["experiment_name"]
@@ -161,59 +212,69 @@ def node_analyze(state: OptimizerState) -> dict:
     print("\n[analyze] Identifying failure patterns (sonnet)...")
     llm = ChatAnthropic(model=SONNET, temperature=0)
 
+    metric_descriptions = "\n".join(
+        f"- {name}: {description}" for name, description in EVAL_METRICS.items()
+    )
+
     response = llm.invoke([HumanMessage(content=f"""\
-You are analyzing routing failures for a personal shopping concierge with these subagents:
-- product_catalog_agent: owns order history, delivery status, prices, SKUs, internal reviews
-- policy_and_sizing_agent: owns return windows, brand-specific rules, non-returnable items, sizing guides
-- cart_and_orders_agent: executes cart actions (add, return, wishlist) — needs a real SKU/order_id
-- product_comparison_agent: structures comparisons once catalog data is available
-- product_discovery_agent: searches catalog by category or criteria
-- web_research_agent: fetches external prices, reviews, trends
+You are analyzing evaluation results to identify what is wrong with a routing prompt. \
+The goal is to reach a perfect score on every metric for every example.
+
+The evaluation uses these metrics — any score below 1.0 indicates a prompt gap:
+
+{metric_descriptions}
 
 Current system prompt:
 <prompt>
 {state['baseline_prompt']}
 </prompt>
 
-Train eval results ({len(state['failure_summary'].splitlines())} lines, FAIL = metric < 0.6):
+Eval results — all examples with scores, reference outputs, and actual agent outputs \
+(scores are 0.0–1.0; target is 1.0 on all metrics for all examples):
 <results>
 {state['failure_summary']}
 </results>
 
 {ROUTING_PRINCIPLES}
 
-What routing patterns does the current prompt fail to support? \
+For each metric, identify the specific prompt gaps that explain why any example falls short. \
 Focus on patterns across task types — not individual examples. \
-What decision logic or agent knowledge is the prompt missing?\
+Ground your analysis in the critical_agents and task_type fields shown in the results.\
 """)])
 
     return {"analysis": response.content}
 
 
 def node_reflect(state: OptimizerState) -> dict:
-    """Dedicated reflection node — uses the strongest model to separate
-    general patterns from example-specific overfitting risks."""
-    print("\n[reflect] Reflecting on generalizability (opus)...")
+    """Dedicated reflection node — filters analysis to changes that will improve
+    specific metric scores on unseen examples without overfitting."""
+    print("\n[reflect] Reflecting on metric impact (opus)...")
     llm = ChatAnthropic(model=OPUS, temperature=0)
 
+    metric_names = ", ".join(EVAL_METRICS.keys())
+
     response = llm.invoke([HumanMessage(content=f"""\
-You are reviewing a failure analysis for a routing prompt. Your job is to be a critical \
-filter: separate what genuinely generalizes from what would overfit to the training examples.
+You are reviewing a failure analysis for a routing prompt. Your goal is to decide which \
+proposed changes will actually improve scores on the evaluation metrics ({metric_names}) \
+for unseen examples — not just patch the specific training examples.
 
 Failure analysis:
 <analysis>
 {state['analysis']}
 </analysis>
 
-For each insight in the analysis, assess:
-1. GENERAL — would this help the agent route correctly on unseen queries of the same type?
-2. OVERFIT — would this only patch the exact training examples shown?
+For each proposed change, assess both dimensions:
 
-Then produce a clean list of ONLY the general, safe-to-incorporate insights, with \
-a brief note on why each generalizes. Explicitly call out and discard anything overfit.
+1. METRIC IMPACT — which metric(s) does this change improve, and why? \
+   A change with no clear metric tie is not worth including.
 
-Be strict. A rule that mentions a specific product category is fine. \
-A rule that only makes sense for one specific query is not.\
+2. GENERALIZATION — would this improvement apply to unseen queries of the same type, \
+   or does it only fix the exact examples shown? \
+   Discard anything that patches a specific example rather than a class of behavior.
+
+Produce a prioritized list of ONLY the changes that pass both tests, with a brief note on \
+which metric each change targets and why it generalizes. Be strict — fewer, sharper changes \
+are better than many vague ones.\
 """)])
 
     return {"reflection": response.content}
@@ -224,26 +285,24 @@ def node_generate(state: OptimizerState) -> dict:
     llm = ChatAnthropic(model=OPUS, temperature=0)
 
     response = llm.invoke([HumanMessage(content=f"""\
-Write an optimized system prompt for the shopping concierge.
+Write an optimized system prompt based on the validated improvements below.
 
 Original prompt:
 <original>
 {state['baseline_prompt']}
 </original>
 
-Validated general patterns to incorporate:
-<patterns>
+Validated improvements to incorporate (each tied to a specific metric):
+<improvements>
 {state['reflection']}
-</patterns>
+</improvements>
 
 {ROUTING_PRINCIPLES}
 
 The optimized prompt must:
-- Describe each subagent by what data it uniquely holds
-- Give clear decision criteria for when each agent is necessary
-- Specify ordering constraints only where genuinely required for correctness
-- Handle the case where eligibility check blocks the action (don't call cart agent)
-- Be a system prompt — concise and durable, not a case-by-case playbook
+- Incorporate each validated improvement exactly as specified
+- Remain a system prompt — concise and durable, not a case-by-case playbook
+- Not introduce any new constraints or behaviors beyond what is validated above
 
 Write only the system prompt text.\
 """)])
@@ -257,16 +316,16 @@ def node_review(state: OptimizerState) -> dict:
     llm = ChatAnthropic(model=OPUS, temperature=0)
 
     response = llm.invoke([HumanMessage(content=f"""\
-Review this optimized routing prompt for a shopping concierge:
+Review this optimized routing prompt for overfit or example-specific language:
 
 <prompt>
 {state['draft_prompt']}
 </prompt>
 
 Check every rule and instruction:
-- Does it reference specific products, brands, users, prices, or SKUs?
-- Is any constraint so narrow it would only apply to the training queries?
-- Would a reasonable unseen query of the same type be handled correctly?
+- Does it reference specific entities, identifiers, or values from training examples?
+- Is any constraint so narrow it would only apply to specific training queries?
+- Would a reasonable unseen query of the same task type be handled correctly?
 
 If the prompt is sound, output it unchanged.
 If there are overfit elements, rewrite only those parts to be more general.
@@ -292,15 +351,15 @@ def node_save(state: OptimizerState) -> dict:
 def build_optimizer_graph():
     graph = StateGraph(OptimizerState)
 
-    graph.add_node("pull_failures", node_pull_failures)
+    graph.add_node("pull_eval_results", node_pull_eval_results)
     graph.add_node("analyze", node_analyze)
     graph.add_node("reflect", node_reflect)
     graph.add_node("generate", node_generate)
     graph.add_node("review", node_review)
     graph.add_node("save", node_save)
 
-    graph.set_entry_point("pull_failures")
-    graph.add_edge("pull_failures", "analyze")
+    graph.set_entry_point("pull_eval_results")
+    graph.add_edge("pull_eval_results", "analyze")
     graph.add_edge("analyze", "reflect")
     graph.add_edge("reflect", "generate")
     graph.add_edge("generate", "review")

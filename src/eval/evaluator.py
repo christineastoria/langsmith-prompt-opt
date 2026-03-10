@@ -89,15 +89,38 @@ def task_completeness(run, example) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Helpers for OR-group semantics in cannot_complete_without
+# ---------------------------------------------------------------------------
+
+def _flatten_critical(critical: list) -> set:
+    """Return the set of all agent names mentioned in cannot_complete_without (flattened)."""
+    result = set()
+    for item in critical:
+        if isinstance(item, str):
+            result.add(item)
+        elif isinstance(item, list):
+            result.update(item)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Evaluator 2: Critical agents called (code check)
 # Only checks agents marked cannot_complete_without — not all expected agents.
 # These are the ones where absence = factually wrong or impossible answer.
+#
+# cannot_complete_without supports two item formats:
+#   - str  → that exact agent must be called (AND)
+#   - list → at least one agent in the list must be called (OR group)
+#
+# Example: [["product_catalog_agent", "product_discovery_agent"], "web_research_agent"]
+#   means (product_catalog_agent OR product_discovery_agent) AND web_research_agent.
 # ---------------------------------------------------------------------------
 
 def critical_agents_called(run, example) -> dict:
     """
     Were the agents strictly necessary for this task actually called?
     Only checks cannot_complete_without — not the full expected_agents list.
+    Supports OR groups via nested lists.
     """
     actual: list = _outputs(run).get("agents_called", [])
     critical: list = _expected(example).get("cannot_complete_without", [])
@@ -106,21 +129,35 @@ def critical_agents_called(run, example) -> dict:
         return {"score": None, "comment": "No critical agents defined — skipped."}
 
     actual_set = set(actual)
-    critical_set = set(critical)
-    missing = critical_set - actual_set
+    satisfied = []
+    unsatisfied = []
 
-    if not missing:
+    for item in critical:
+        if isinstance(item, str):
+            if item in actual_set:
+                satisfied.append(item)
+            else:
+                unsatisfied.append(item)
+        elif isinstance(item, list):
+            label = f"({' OR '.join(item)})"
+            if any(a in actual_set for a in item):
+                satisfied.append(label)
+            else:
+                unsatisfied.append(label)
+
+    score = len(satisfied) / len(critical)
+
+    if not unsatisfied:
         return {
             "score": 1.0,
-            "comment": f"All critical agents called: {sorted(critical_set)}.",
+            "comment": f"All critical requirements satisfied: {satisfied}.",
         }
 
-    score = len(critical_set & actual_set) / len(critical_set)
     return {
         "score": score,
         "comment": (
-            f"Missing critical agents: {sorted(missing)}. "
-            f"Without these, the task cannot be correctly completed. "
+            f"Unsatisfied critical requirements: {unsatisfied}. "
+            f"Satisfied: {satisfied}. "
             f"Called: {sorted(actual_set)}."
         ),
     }
@@ -135,8 +172,15 @@ def critical_agents_called(run, example) -> dict:
 def sequence_respected(run, example) -> dict:
     """
     For sequential tasks: did prerequisite lookups happen before actions?
-    Checks that expected_sequence[0] appears before expected_sequence[-1] in
-    the actual trajectory. Non-sequential examples return score=None.
+
+    Scoring is weighted by whether agents are required vs. optional:
+    - Agents in both expected_sequence AND cannot_complete_without: required.
+      Their ordering is the hard constraint — drives 80% of the score.
+    - Agents in expected_sequence but NOT cannot_complete_without: optional.
+      Bonus for calling them — drives the remaining 20%.
+
+    If there are no optional agents, the full score comes from required ordering.
+    Non-sequential examples return score=None (excluded from aggregation).
     """
     ex_out = _expected(example)
 
@@ -145,6 +189,7 @@ def sequence_respected(run, example) -> dict:
 
     actual: list = _outputs(run).get("agents_called", [])
     expected_seq: list = ex_out.get("expected_sequence", [])
+    required_set: set = _flatten_critical(ex_out.get("cannot_complete_without", []))
 
     if len(expected_seq) < 2:
         return {"score": None, "comment": "Sequence has fewer than 2 steps — skipped."}
@@ -152,39 +197,40 @@ def sequence_respected(run, example) -> dict:
     if not actual:
         return {"score": 0.0, "comment": "No agents called."}
 
-    # Check that each agent in expected_sequence appears in the correct relative order
-    positions = {agent: actual.index(agent) for agent in expected_seq if agent in actual}
-    missing_from_actual = [a for a in expected_seq if a not in positions]
+    required_seq = [a for a in expected_seq if a in required_set]
+    optional_seq = [a for a in expected_seq if a not in required_set]
 
-    if missing_from_actual:
-        return {
-            "score": 0.0,
-            "comment": (
-                f"Required agents not called: {missing_from_actual}. "
-                f"Actual trajectory: {actual}."
-            ),
-        }
+    def _ordering_score(seq: list, trajectory: list) -> tuple[float, str]:
+        """Score how well a subsequence is ordered within the trajectory."""
+        positions = {a: trajectory.index(a) for a in seq if a in trajectory}
+        missing = [a for a in seq if a not in positions]
+        if missing:
+            # Partial: fraction present, capped at 0.5 since ordering can't be verified
+            frac = len(positions) / len(seq) * 0.5
+            return frac, f"missing: {missing}"
+        ordered = [positions[a] for a in seq]
+        correct = sum(1 for i in range(len(ordered) - 1) if ordered[i] < ordered[i + 1])
+        return correct / (len(ordered) - 1), f"{correct}/{len(ordered) - 1} pairs in order"
 
-    # Verify ordering: each agent must appear after the previous one
-    ordered_positions = [positions[a] for a in expected_seq]
-    is_ordered = all(ordered_positions[i] < ordered_positions[i + 1] for i in range(len(ordered_positions) - 1))
+    # Score required ordering
+    if len(required_seq) >= 2:
+        required_score, req_note = _ordering_score(required_seq, actual)
+    else:
+        required_score, req_note = 1.0, "no required ordering constraint"
 
-    if is_ordered:
-        return {
-            "score": 1.0,
-            "comment": f"Correct sequence. Trajectory: {actual}.",
-        }
+    # Score optional agents (bonus: were they called at all?)
+    if optional_seq:
+        called_optional = [a for a in optional_seq if a in actual]
+        optional_score = len(called_optional) / len(optional_seq)
+        OPTIONAL_WEIGHT = 0.2
+        score = required_score * (1 - OPTIONAL_WEIGHT) + optional_score * OPTIONAL_WEIGHT
+        comment = (
+            f"Required {required_seq}: {req_note}. "
+            f"Optional {optional_seq}: {len(called_optional)}/{len(optional_seq)} called. "
+            f"Score={score:.2f} (80% required + 20% optional)."
+        )
+    else:
+        score = required_score
+        comment = f"Required {required_seq}: {req_note}. Score={score:.2f}."
 
-    # Partial credit: how many consecutive pairs are in the right order
-    correct_pairs = sum(
-        1 for i in range(len(ordered_positions) - 1)
-        if ordered_positions[i] < ordered_positions[i + 1]
-    )
-    score = correct_pairs / (len(ordered_positions) - 1)
-    return {
-        "score": score,
-        "comment": (
-            f"{correct_pairs}/{len(ordered_positions)-1} sequential pairs in correct order. "
-            f"Expected: {expected_seq}. Actual trajectory: {actual}."
-        ),
-    }
+    return {"score": score, "comment": comment}

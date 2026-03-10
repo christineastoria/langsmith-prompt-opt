@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "optimizer": "./src/optimizer/run_optimizer.py:build_optimizer_graph"
+  },
+  "env": ".env"
+}

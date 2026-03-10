@@ -9,7 +9,7 @@ task_completeness (LLM judge)
 
 critical_agents_called (code)
     Were the agents in cannot_complete_without actually called?
-    These are the agents that HOLD the ground truth — without them, any
+    These are the agents that HOLD the ground truth - without them, any
     correct-sounding answer is hallucinated.
 
 sequence_respected (code)
@@ -21,7 +21,7 @@ Sequencing rules
 ----------------
 - requires_sequencing: True ONLY when cart action depends on catalog output
   (needs actual order_id or sku to call initiate_return / add_to_cart)
-- Everything else is False — parallel independent lookups don't have a
+- Everything else is False - parallel independent lookups don't have a
   required order even if both are needed
 
 Run to upload (replaces existing datasets):
@@ -46,10 +46,10 @@ DATASET_NAME = "shopping-concierge-routing"
 # DB reference (from setup_db.py)
 # ---------------------------------------------------------------------------
 # Users:
-#   alex@example.com   — delivered MacBook (22 days), processing AirPods (2 days)
-#   jordan@example.com — delivered Sony XM6 (5 days), shipped Arc'teryx (8 days)
-#   sam@example.com    — delivered Allbirds+Uniqlo (14 days), returned Dyson (35 days)
-#   mia@example.com    — delivered Alo leggings+Diptyque Baies (6 days),
+#   alex@example.com   - delivered MacBook (22 days), processing AirPods (2 days)
+#   jordan@example.com - delivered Sony XM6 (5 days), shipped Arc'teryx (8 days)
+#   sam@example.com    - delivered Allbirds+Uniqlo (14 days), returned Dyson (35 days)
+#   mia@example.com    - delivered Alo leggings+Diptyque Baies (6 days),
 #                        delivered Skims bodysuit x2 (20 days),
 #                        processing Aritzia Super Puff (1 day)
 #
@@ -61,8 +61,8 @@ DATASET_NAME = "shopping-concierge-routing"
 #   Rhode lip treatment $20, Drunk Elephant $68, Glossier You $72,
 #   Nike Air Max $150, Ultraboost $190, Allbirds $128, Timberland $230, NB 990v6 $185
 #
-# Return policy: standard 30 days unworn; electronics 14 days; candles 14 days
-#   if unopened; beauty/skincare no returns once opened;
+# Return policy: standard 30 days unworn; electronics 30 days (Apple products: 14 days
+#   for opened); candles 14 days if unopened; beauty/skincare no returns once opened;
 #   Skims bodysuits non-returnable (final sale)
 # ---------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ EXAMPLES = [
         "outputs": {
             "task_type": "price_assessment",
             "required_info": ["Nike Air Max 270 was $120 on sale ~45 days ago, now back to $150"],
-            "expected_agents": ["product_catalog_agent"],
+            "expected_agents": ["product_catalog_agent", "web_research_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": False,
             "expected_sequence": [],
@@ -217,7 +217,7 @@ EXAMPLES = [
     # ================================================================
     # RETURN ELIGIBILITY
     # Both catalog (order date/status) + policy (window + conditions).
-    # Neither depends on the other — requires_sequencing: False.
+    # Neither depends on the other - requires_sequencing: False.
     # Policy-only examples included for general questions.
     # ================================================================
 
@@ -228,7 +228,7 @@ EXAMPLES = [
             "required_info": [
                 "Alo leggings delivered 6 days ago",
                 "activewear return window is 30 days, unworn with tags",
-                "eligible — within window",
+                "eligible - within window",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -242,9 +242,9 @@ EXAMPLES = [
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
-                "Alo leggings delivered 6 days ago (not 14 — correct the customer)",
+                "Alo leggings delivered 6 days ago (not 14 - correct the customer)",
                 "30-day activewear window",
-                "eligible — 24 days remaining",
+                "eligible - 24 days remaining",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -260,7 +260,7 @@ EXAMPLES = [
             "required_info": [
                 "MacBook delivered 22 days ago",
                 "electronics return window is 14 days",
-                "not eligible — outside 14-day electronics window",
+                "not eligible - outside 14-day electronics window",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -274,9 +274,9 @@ EXAMPLES = [
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
-                "Arc'teryx jacket status is 'shipped' — not yet delivered",
+                "Arc'teryx jacket status is 'shipped' - not yet delivered",
                 "return policy requires delivered status before a return can be started",
-                "cannot return yet — not delivered",
+                "cannot return yet - not delivered",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -292,7 +292,7 @@ EXAMPLES = [
             "required_info": [
                 "Allbirds Tree Runner delivered 14 days ago",
                 "footwear return window is 30 days, unworn",
-                "eligible — 16 days remaining",
+                "eligible - 16 days remaining",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -308,7 +308,7 @@ EXAMPLES = [
             "required_info": [
                 "Uniqlo Ultra Light Down delivered 14 days ago",
                 "clothing return window is 30 days, unworn with tags",
-                "eligible — 16 days remaining",
+                "eligible - 16 days remaining",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -324,7 +324,7 @@ EXAMPLES = [
             "required_info": [
                 "Diptyque Baies delivered 6 days ago",
                 "candles: 14-day window, only if unopened",
-                "eligible IF unopened — within 14-day candle window",
+                "eligible IF unopened - within 14-day candle window",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -339,8 +339,8 @@ EXAMPLES = [
             "task_type": "return_eligibility",
             "required_info": [
                 "Sony XM6 delivered 5 days ago",
-                "electronics return window is 14 days",
-                "9 days remaining to return",
+                "electronics return window is 30 days",
+                "25 days remaining to return",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -350,13 +350,13 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I want to return my AirPods — can I?", "user_email": "alex@example.com"},
+        "inputs": {"query": "I want to return my AirPods - can I?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
-                "AirPods Pro status is 'processing' — not yet shipped or delivered",
+                "AirPods Pro status is 'processing' - not yet shipped or delivered",
                 "return policy requires delivered status",
-                "cannot return yet — order not delivered",
+                "cannot return yet - order not delivered",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -371,8 +371,8 @@ EXAMPLES = [
             "task_type": "return_eligibility",
             "required_info": [
                 "Skims Fits Everybody Bodysuit delivered 20 days ago",
-                "Skims bodysuits are final sale — non-returnable",
-                "not eligible — Skims bodysuits cannot be returned",
+                "Skims bodysuits are final sale - non-returnable",
+                "not eligible - Skims bodysuits cannot be returned",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -386,9 +386,9 @@ EXAMPLES = [
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
-                "Aritzia Super Puff status is 'processing' — just ordered 1 day ago",
+                "Aritzia Super Puff status is 'processing' - just ordered 1 day ago",
                 "return policy requires delivered status",
-                "cannot return yet — not delivered",
+                "cannot return yet - not delivered",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -398,13 +398,13 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I got the wrong size Alo leggings — can I exchange them?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I got the wrong size Alo leggings - can I exchange them?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
                 "Alo Airlift leggings delivered 6 days ago",
                 "exchanges treated same as returns: 30 days, unworn with tags",
-                "eligible for exchange — within window",
+                "eligible for exchange - within window",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -418,8 +418,9 @@ EXAMPLES = [
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
-                "electronics return window is 14 days from delivery",
-                "must be in original packaging, unused",
+                "electronics return window is 30 days from delivery",
+                "must be unopened OR opened but unused, with all original accessories included",
+                "Apple products (MacBook, iPhone, AirPods) are 14 days for opened items",
             ],
             "expected_agents": ["policy_and_sizing_agent"],
             "cannot_complete_without": ["policy_and_sizing_agent"],
@@ -433,7 +434,7 @@ EXAMPLES = [
         "outputs": {
             "task_type": "return_eligibility",
             "required_info": [
-                "Dyson V15 return was processed 35 days ago — status is 'returned'",
+                "Dyson V15 return was processed 35 days ago - status is 'returned'",
                 "return is complete",
             ],
             "expected_agents": ["product_catalog_agent"],
@@ -489,7 +490,7 @@ EXAMPLES = [
             "required_info": [
                 "MacBook Pro purchased 22 days ago",
                 "Apple 1-year limited warranty",
-                "still under warranty — well within 1-year period",
+                "still under warranty - well within 1-year period",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -503,19 +504,18 @@ EXAMPLES = [
         "outputs": {
             "task_type": "warranty_lookup",
             "required_info": [
-                "Jordan purchased Sony WH-1000XM6 5 days ago",
                 "Sony 1-year limited warranty",
                 "covered for manufacturing defects within 1 year of purchase",
             ],
-            "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
-            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "expected_agents": ["policy_and_sizing_agent"],
+            "cannot_complete_without": ["policy_and_sizing_agent"],
             "requires_sequencing": False,
             "expected_sequence": [],
-            "failure_mode": "Without catalog: doesn't confirm Jordan owns it. Without policy: can't give Sony warranty details.",
+            "failure_mode": "Without policy: can't give accurate Sony warranty terms.",
         },
     },
     {
-        "inputs": {"query": "My Allbirds are falling apart — what's the warranty?", "user_email": "sam@example.com"},
+        "inputs": {"query": "My Allbirds are falling apart - what's the warranty?", "user_email": "sam@example.com"},
         "outputs": {
             "task_type": "warranty_lookup",
             "required_info": [
@@ -546,11 +546,11 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "My MacBook is acting strange — am I still covered and how do I claim?", "user_email": "alex@example.com"},
+        "inputs": {"query": "My MacBook is acting strange - am I still covered and how do I claim?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "warranty_lookup",
             "required_info": [
-                "MacBook Pro purchased 22 days ago — still under Apple's 1-year warranty",
+                "MacBook Pro purchased 22 days ago - still under Apple's 1-year warranty",
                 "claim: Apple Store or apple.com/support",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -576,7 +576,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "Arc'teryx lifetime warranty — what exactly does it cover?", "user_email": "jordan@example.com"},
+        "inputs": {"query": "Arc'teryx lifetime warranty - what exactly does it cover?", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "warranty_lookup",
             "required_info": [
@@ -595,12 +595,12 @@ EXAMPLES = [
     # PRODUCT COMPARISON
     # catalog fetches data → comparison_agent structures the analysis.
     # requires_sequencing: True (comparison needs catalog data to run).
-    # cannot_complete_without: ["product_catalog_agent"] — without real
+    # cannot_complete_without: ["product_catalog_agent"] - without real
     # specs/prices/reviews the comparison works on hallucinated data.
     # ================================================================
 
     {
-        "inputs": {"query": "Compare the MacBook Pro 14 and Dell XPS 13 — which is better value?", "user_email": "alex@example.com"},
+        "inputs": {"query": "Compare the MacBook Pro 14 and Dell XPS 13 - which is better value?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
@@ -608,11 +608,11 @@ EXAMPLES = [
                 "Dell XPS 13: 16GB RAM, 512GB SSD, 13hr battery, $1299",
                 "value judgment supported by the specs",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: comparison uses hallucinated specs. Without comparison: raw spec dump, no value analysis.",
+            "expected_agents": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: comparison uses hallucinated specs.",
         },
     },
     {
@@ -620,18 +620,19 @@ EXAMPLES = [
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
-                "Adidas Ultraboost 24 ($190), New Balance 990v6 ($185), Allbirds Tree Runner ($128)",
-                "ranked comparison with value justification",
+                "running shoes in catalog: Adidas Ultraboost 24 ($190, subcategory Running), New Balance 990v6 ($185, subcategory Running)",
+                "Allbirds Tree Runner is subcategory Casual - not a running shoe",
+                "structured ranked output with value justification per item",
             ],
             "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: incomplete or hallucinated product list. Without comparison: no ranked analysis.",
+            "failure_mode": "Without catalog: incomplete or hallucinated product list. product_comparison_agent produces the structured ranked output.",
         },
     },
     {
-        "inputs": {"query": "Sony XM6 vs AirPods Pro — which is better for commuting?", "user_email": "jordan@example.com"},
+        "inputs": {"query": "Sony XM6 vs AirPods Pro - which is better for commuting?", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
@@ -639,15 +640,15 @@ EXAMPLES = [
                 "AirPods Pro 3rd Gen: in-ear, 6hr (30 with case), $249, H2 chip",
                 "recommendation for commuting with reasoning",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
+            "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: hallucinated specs. Without comparison: no structured recommendation.",
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: hallucinated specs.",
         },
     },
     {
-        "inputs": {"query": "MacBook Pro vs iPad Pro — which is better for content creation?", "user_email": "alex@example.com"},
+        "inputs": {"query": "MacBook Pro vs iPad Pro - which is better for content creation?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
@@ -655,15 +656,15 @@ EXAMPLES = [
                 "iPad Pro 13 M4: $1099, tablet, 256GB, Apple Pencil Pro support",
                 "comparison for content creation use case",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
+            "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: specs are hallucinated. Without comparison: no use-case analysis.",
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: specs are hallucinated.",
         },
     },
     {
-        "inputs": {"query": "Patagonia Nano Puff vs Uniqlo Ultra Light — which is worth more?", "user_email": "alex@example.com"},
+        "inputs": {"query": "Patagonia Nano Puff vs Uniqlo Ultra Light - which is worth more?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
@@ -671,11 +672,11 @@ EXAMPLES = [
                 "Uniqlo Ultra Light Down: $89, 90% down, 195g, packable",
                 "value comparison based on specs and price difference",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
+            "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: can't get accurate prices or specs. Without comparison: no value analysis.",
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: can't get accurate prices or specs.",
         },
     },
     {
@@ -685,29 +686,30 @@ EXAMPLES = [
             "required_info": [
                 "jackets under $300: Patagonia Nano Puff ($249), Uniqlo Ultra Light ($89)",
                 "Arc'teryx ($799) excluded as over budget",
-                "ranked comparison with value justification",
+                "structured ranked output with value justification per item",
             ],
             "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: might include wrong products or prices. Without comparison: no ranking.",
+            "failure_mode": "Without catalog: might include wrong products or prices. product_comparison_agent produces the structured ranked output.",
         },
     },
     {
-        "inputs": {"query": "Which headphones do you carry — rank them by what customers prefer", "user_email": "jordan@example.com"},
+        "inputs": {"query": "Which headphones do you carry - rank them by what customers prefer", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
-                "Sony WH-1000XM6 has internal reviews (Jordan: 5★, Alex: 4★ — avg 4.5)",
+                "Sony WH-1000XM6 has internal reviews (Jordan: 5★, Alex: 4★ - avg 4.5)",
                 "AirPods Pro 3rd Gen has NO internal reviews in our system",
                 "Sony XM6 wins on customer sentiment; AirPods Pro is unranked internally",
+                "structured ranked output by customer preference",
             ],
             "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: can't get actual review data. Without comparison: no structured ranking.",
+            "failure_mode": "Without catalog: can't get actual review data. product_comparison_agent produces the structured ranking by customer preference.",
         },
     },
     {
@@ -718,33 +720,33 @@ EXAMPLES = [
                 "MacBook Pro 14 M4: $1599, 24hr battery, M4 chip",
                 "Dell XPS 13: $1299, 13hr battery, Intel Core Ultra 7",
                 "iPad Pro 13: $1099 (tablet, not traditional laptop)",
-                "value analysis across the three",
+                "structured ranked output with value justification per item",
             ],
             "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: incomplete or hallucinated product list. Without comparison: no value analysis.",
+            "failure_mode": "Without catalog: incomplete or hallucinated product list. product_comparison_agent produces the structured ranked output.",
         },
     },
     {
-        "inputs": {"query": "Compare the two Diptyque candles — which should I get?", "user_email": "mia@example.com"},
+        "inputs": {"query": "Compare the Diptyque Baies and Feu de Bois candles - which should I get?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
                 "Diptyque Baies: $75, blackcurrant + rose, 60hr burn",
                 "Diptyque Feu de Bois: $75, smoky wood, 60hr burn",
-                "same price and specs — comparison on fragrance profile",
+                "same price and specs - comparison on fragrance profile",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
+            "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: can't get accurate fragrance profiles. Without comparison: just a raw list.",
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: can't get accurate fragrance profiles.",
         },
     },
     {
-        "inputs": {"query": "Which Alo item has better reviews — the leggings or the sweatshirt?", "user_email": "mia@example.com"},
+        "inputs": {"query": "Which Alo item has better reviews - the leggings or the sweatshirt?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
@@ -752,15 +754,15 @@ EXAMPLES = [
                 "Alo Accolade Sweatshirt: no reviews yet in our system",
                 "leggings win on reviews; sweatshirt is unreviewed",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
+            "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: hallucinated review data. Without comparison: no structured analysis.",
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: hallucinated review data.",
         },
     },
     {
-        "inputs": {"query": "Nike Air Max vs Adidas Ultraboost — which is better for running?", "user_email": "jordan@example.com"},
+        "inputs": {"query": "Nike Air Max vs Adidas Ultraboost - which is better for running?", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "product_comparison",
             "required_info": [
@@ -768,11 +770,11 @@ EXAMPLES = [
                 "Adidas Ultraboost 24: $190, Boost midsole, dedicated performance running shoe",
                 "Ultraboost is better for running; Air Max better for casual use",
             ],
-            "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
+            "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: wrong specs. Without comparison: no running-specific recommendation.",
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: wrong specs.",
         },
     },
     {
@@ -783,12 +785,13 @@ EXAMPLES = [
                 "Skims Fits Everybody Bodysuit: multiple 5-star reviews",
                 "Skims Soft Lounge Slip Dress: no internal reviews yet",
                 "bodysuit is the clear winner by reviews",
+                "structured ranked output by customer review score",
             ],
             "expected_agents": ["product_catalog_agent", "product_comparison_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "product_comparison_agent"],
-            "failure_mode": "Without catalog: no actual review data. Without comparison: no structured ranking.",
+            "failure_mode": "Without catalog: no actual review data. product_comparison_agent produces the structured ranking by review score.",
         },
     },
 
@@ -801,7 +804,7 @@ EXAMPLES = [
     # ================================================================
 
     {
-        "inputs": {"query": "Find me a good outdoor jacket under $300 — what do reviewers say?", "user_email": "alex@example.com"},
+        "inputs": {"query": "Find me a good outdoor jacket under $300 - what do reviewers say?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -829,7 +832,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I need noise-cancelling headphones — what's the consensus?", "user_email": "jordan@example.com"},
+        "inputs": {"query": "I need noise-cancelling headphones - what's the consensus?", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -857,7 +860,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I need a laptop for video editing — what are professionals saying is best?", "user_email": "alex@example.com"},
+        "inputs": {"query": "I need a laptop for video editing - what are professionals saying is best?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -871,7 +874,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I'm looking for skincare — are the options you carry actually worth it?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I'm looking for skincare - are the options you carry actually worth it?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -885,13 +888,13 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "Looking for running shoes — what do the experts say?", "user_email": "jordan@example.com"},
+        "inputs": {"query": "Looking for running shoes - what do the experts say?", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
                 "our running shoes: Ultraboost 24 ($190), NB 990v6 ($185)",
             ],
-            "expected_agents": ["product_discovery_agent", "web_research_agent"],
+            "expected_agents": ["product_catalog_agent", "product_discovery_agent", "web_research_agent"],
             "cannot_complete_without": ["product_discovery_agent", "web_research_agent"],
             "requires_sequencing": False,
             "expected_sequence": [],
@@ -899,7 +902,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "What's a good winter coat for NYC — what are people loving right now?", "user_email": "mia@example.com"},
+        "inputs": {"query": "What's a good winter coat for NYC - what are people loving right now?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -913,7 +916,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "What's a good gift under $100 — and what do people say about it?", "user_email": "sam@example.com"},
+        "inputs": {"query": "What's a good gift under $100 - and what do people say about it?", "user_email": "sam@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -927,7 +930,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I want a candle or fragrance — what are people actually loving right now?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I want a candle or fragrance - what are people actually loving right now?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "discovery_with_validation",
             "required_info": [
@@ -950,7 +953,7 @@ EXAMPLES = [
     # ================================================================
 
     {
-        "inputs": {"query": "I just ordered the Skims bodysuit — did I pick the right size?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I just ordered the Skims bodysuit - did I pick the right size?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
@@ -966,7 +969,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I'm getting the Aritzia Super Puff — what size given I'm XS but want it roomy?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I'm getting the Aritzia Super Puff - what size given I'm XS but want it roomy?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
@@ -996,13 +999,13 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "My Alo leggings feel kind of tight — did I order the right size?", "user_email": "mia@example.com"},
+        "inputs": {"query": "My Alo leggings feel kind of tight - did I order the right size?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
                 "Mia ordered Alo Airlift leggings (XS, delivered 6 days ago)",
-                "Alo Airlift runs true to size — XS is correct for an XS frame",
-                "tightness is expected — Airlift is a compressive performance fabric",
+                "Alo Airlift runs true to size - XS is correct for an XS frame",
+                "tightness is expected - Airlift is a compressive performance fabric",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -1012,7 +1015,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I want the Alo sweatshirt in an oversized look — what size?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I want the Alo sweatshirt in an oversized look - what size?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
@@ -1042,12 +1045,12 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "New Balance 990v6 — should I size up or is it TTS?", "user_email": "alex@example.com"},
+        "inputs": {"query": "New Balance 990v6 - should I size up or is it TTS?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
                 "New Balance 990v6 runs true to size",
-                "available in wide widths — go up half size if between sizes or wide footed",
+                "available in wide widths - go up half size if between sizes or wide footed",
             ],
             "expected_agents": ["policy_and_sizing_agent"],
             "cannot_complete_without": ["policy_and_sizing_agent"],
@@ -1057,11 +1060,11 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "Timberland 6-inch boot — how do they fit?", "user_email": "sam@example.com"},
+        "inputs": {"query": "Timberland 6-inch boot - how do they fit?", "user_email": "sam@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
-                "Timberland 6-inch boot runs slightly large — size down half",
+                "Timberland 6-inch boot runs slightly large - size down half",
                 "wide toe box: good for wide feet at true size",
             ],
             "expected_agents": ["policy_and_sizing_agent"],
@@ -1072,7 +1075,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "How does the Arc'teryx Beta AR fit — I usually wear L", "user_email": "jordan@example.com"},
+        "inputs": {"query": "How does the Arc'teryx Beta AR fit - I usually wear L", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
@@ -1087,7 +1090,7 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I want to order the Skims Soft Lounge Slip Dress — what size as an XS?", "user_email": "mia@example.com"},
+        "inputs": {"query": "I want to order the Skims Soft Lounge Slip Dress - what size as an XS?", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
@@ -1117,12 +1120,12 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I'm buying a Skims bodysuit in XS as a gift — will it fit someone who's usually a S?", "user_email": "alex@example.com"},
+        "inputs": {"query": "I'm buying a Skims bodysuit in XS as a gift - will it fit someone who's usually a S?", "user_email": "alex@example.com"},
         "outputs": {
             "task_type": "sizing_with_context",
             "required_info": [
                 "Skims Fits Everybody fabric stretches to 3x its size",
-                "XS fits roughly XXS-S range — will work for a S but be more fitted",
+                "XS fits roughly XXS-S range - will work for a S but be more fitted",
                 "recommend S for a standard fit; XS will be snug",
             ],
             "expected_agents": ["policy_and_sizing_agent"],
@@ -1149,11 +1152,11 @@ EXAMPLES = [
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
-                "both Diptyque candles are $75 — same price",
+                "both Diptyque candles are $75 - same price",
                 "correct response: inform they're the same price, ask which she prefers",
             ],
             "expected_agents": ["product_catalog_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": False,
             "expected_sequence": [],
             "failure_mode": "Without catalog: hallucinates a price difference or picks one arbitrarily.",
@@ -1181,7 +1184,7 @@ EXAMPLES = [
             "required_info": [
                 "most recent delivered: Alo leggings + Diptyque Baies (6 days ago)",
                 "policy: candles returnable only if unopened within 14 days; leggings within 30 days",
-                "can only return the leggings — candle requires unopened condition",
+                "can only return the leggings - candle requires unopened condition",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -1191,13 +1194,13 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "I want to return my jacket — can you start the return?", "user_email": "jordan@example.com"},
+        "inputs": {"query": "I want to return my jacket - can you start the return?", "user_email": "jordan@example.com"},
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
-                "Arc'teryx jacket status is 'shipped' — not delivered",
+                "Arc'teryx jacket status is 'shipped' - not delivered",
                 "return requires delivered status",
-                "cannot initiate return yet — not delivered",
+                "cannot initiate return yet - not delivered",
             ],
             "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
@@ -1215,7 +1218,7 @@ EXAMPLES = [
                 "correct action: save Dell XPS 13 (ELEC-002) to Alex's wishlist",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: can't determine actual prices; SKU would be hallucinated.",
@@ -1226,9 +1229,8 @@ EXAMPLES = [
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
-                "Allbirds Tree Runner delivered 14 days ago",
-                "footwear return window is 30 days, unworn",
-                "eligible — initiate return for FOOT-003",
+                "Allbirds Tree Runner (FOOT-003) delivered 14 days ago - within 30-day footwear window",
+                "return initiated for FOOT-003, or eligibility confirmed and conditions communicated to user",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
@@ -1242,15 +1244,14 @@ EXAMPLES = [
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
-                "Sony XM6 delivered 5 days ago",
-                "electronics return window is 14 days",
-                "eligible — initiate return for ELEC-003",
+                "Sony XM6 (ELEC-003) delivered 5 days ago - within 30-day electronics window",
+                "return initiated for ELEC-003, or eligibility confirmed and conditions communicated to user",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
-            "failure_mode": "Without catalog: no order_id or sku. Without policy: might miss electronics 14-day window.",
+            "failure_mode": "Without catalog: no order details or SKU to verify delivery or initiate return.",
         },
     },
     {
@@ -1269,29 +1270,13 @@ EXAMPLES = [
         },
     },
     {
-        "inputs": {"query": "Return my Uniqlo jacket", "user_email": "sam@example.com"},
-        "outputs": {
-            "task_type": "action_with_prerequisite",
-            "required_info": [
-                "Uniqlo Ultra Light Down delivered 14 days ago",
-                "clothing return window is 30 days, unworn with tags",
-                "eligible — initiate return for CLTH-004",
-            ],
-            "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
-            "requires_sequencing": True,
-            "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
-            "failure_mode": "Without catalog: no order details or sku for initiate_return.",
-        },
-    },
-    {
         "inputs": {"query": "I want to return the Skims bodysuit I ordered", "user_email": "mia@example.com"},
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
                 "Skims Fits Everybody Bodysuit delivered 20 days ago",
-                "Skims bodysuits are non-returnable — final sale",
-                "cannot initiate return — Skims bodysuits are excluded",
+                "Skims bodysuits are non-returnable - final sale",
+                "cannot initiate return - Skims bodysuits are excluded",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -1307,7 +1292,7 @@ EXAMPLES = [
             "required_info": [
                 "MacBook Pro delivered 22 days ago",
                 "electronics return window is 14 days",
-                "not eligible — outside the 14-day electronics window",
+                "not eligible - outside the 14-day electronics window",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
             "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
@@ -1325,7 +1310,7 @@ EXAMPLES = [
                 "correct action: add BEAU-003 to Mia's cart",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: can't find actual prices across Beauty & Wellness.",
@@ -1340,7 +1325,7 @@ EXAMPLES = [
                 "correct action: save FASH-003 to Mia's wishlist",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: no SKU to pass to save_to_wishlist.",
@@ -1351,14 +1336,14 @@ EXAMPLES = [
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
-                "Sam's Dyson V15 was already returned 35 days ago — status is 'returned'",
+                "Sam's Dyson V15 was already returned 35 days ago - status is 'returned'",
                 "correct response: inform Sam the return was already processed",
             ],
             "expected_agents": ["product_catalog_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
             "requires_sequencing": False,
             "expected_sequence": [],
-            "failure_mode": "Without catalog: doesn't know return was already processed — policy check is irrelevant once status is 'returned'.",
+            "failure_mode": "Without catalog: doesn't know return was already processed - policy check is irrelevant once status is 'returned'.",
         },
     },
     {
@@ -1385,7 +1370,7 @@ EXAMPLES = [
                 "correct action: add ELEC-004 to Alex's cart",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: SKU passed to add_to_cart is hallucinated.",
@@ -1398,7 +1383,7 @@ EXAMPLES = [
             "required_info": [
                 "Sam's last delivered order: Allbirds + Uniqlo Down Jacket (14 days ago)",
                 "both within 30-day window, both eligible",
-                "initiate return for FOOT-003 and CLTH-004",
+                "returns initiated for FOOT-003 and CLTH-004, or eligibility confirmed and conditions communicated to user",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
@@ -1416,7 +1401,7 @@ EXAMPLES = [
                 "correct action: add ELEC-003 to Alex's cart",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: SKU would be hallucinated.",
@@ -1428,7 +1413,7 @@ EXAMPLES = [
             "task_type": "action_with_prerequisite",
             "required_info": [
                 "Mia's delivered: Alo leggings + Diptyque Baies (6 days ago), Skims bodysuit (20 days ago)",
-                "eligible: Alo leggings only — Skims non-returnable, candle requires unopened",
+                "eligible: Alo leggings only - Skims non-returnable, candle requires unopened",
                 "only the leggings can be returned",
             ],
             "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
@@ -1448,7 +1433,7 @@ EXAMPLES = [
                 "correct action: save HOME-003 to Sam's wishlist",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: can't get actual prices to find cheapest.",
@@ -1463,7 +1448,7 @@ EXAMPLES = [
                 "correct action: add BEAU-003 to Mia's cart",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"]],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: SKU would be hallucinated.",
@@ -1474,9 +1459,9 @@ EXAMPLES = [
         "outputs": {
             "task_type": "action_with_prerequisite",
             "required_info": [
-                "Allbirds delivered 14 days ago, eligible for return",
+                "Allbirds (FOOT-003) delivered 14 days ago, eligible for return",
                 "YETI Rambler 30oz SKU is HOME-003, price $45",
-                "initiate return for FOOT-003 and add HOME-003 to cart",
+                "return initiated for FOOT-003 or eligibility confirmed; add HOME-003 to cart",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
             "cannot_complete_without": ["product_catalog_agent"],
@@ -1494,10 +1479,108 @@ EXAMPLES = [
                 "correct action: add CLTH-001 to Alex's cart",
             ],
             "expected_agents": ["product_catalog_agent", "cart_and_orders_agent"],
-            "cannot_complete_without": ["product_catalog_agent"],
+            "cannot_complete_without": [["product_catalog_agent", "product_discovery_agent"], "cart_and_orders_agent"],
             "requires_sequencing": True,
             "expected_sequence": ["product_catalog_agent", "cart_and_orders_agent"],
             "failure_mode": "Without catalog: SKU would be hallucinated.",
+        },
+    },
+
+    # ================================================================
+    # TIMELINE CORRECTION
+    # Customer states a wrong timeframe - agent must look up actual
+    # delivery date and correct them rather than accepting the claim.
+    # ================================================================
+
+    {
+        "inputs": {"query": "I've had my Allbirds for over a month - am I past the return window?", "user_email": "sam@example.com"},
+        "outputs": {
+            "task_type": "return_eligibility",
+            "required_info": [
+                "Sam's Allbirds Tree Runner delivered 14 days ago - not over a month, correct the customer",
+                "footwear return window is 30 days, unworn",
+                "eligible - 16 days remaining",
+            ],
+            "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "requires_sequencing": False,
+            "expected_sequence": [],
+            "failure_mode": "Without catalog: agent accepts 'over a month' as fact instead of verifying actual delivery date. Without policy: can't apply the correct return window.",
+        },
+    },
+    {
+        "inputs": {"query": "Return my Alo leggings", "user_email": "mia@example.com"},
+        "outputs": {
+            "task_type": "action_with_prerequisite",
+            "required_info": [
+                "Alo Airlift leggings (ACTV-001) delivered 6 days ago",
+                "activewear return window is 30 days, unworn with tags - eligible",
+                "return initiated for ACTV-001, or eligibility confirmed and conditions communicated to user",
+            ],
+            "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
+            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "requires_sequencing": True,
+            "expected_sequence": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
+            "failure_mode": "Without catalog: no order details or SKU. Without policy: can't confirm eligibility or conditions.",
+        },
+    },
+
+    # ================================================================
+    # FULL 3-STEP RETURN SEQUENCE (catalog → policy → cart)
+    # These require all three agents in order:
+    #   1. catalog: find the order and delivery date
+    #   2. policy: verify return eligibility for the category
+    #   3. cart_and_orders: execute the return
+    # Without all three in sequence, the return is either wrong or
+    # never happens. These test that the agent doesn't skip policy
+    # or act before verifying eligibility.
+    # ================================================================
+
+    {
+        "inputs": {"query": "Return my AirPods", "user_email": "alex@example.com"},
+        "outputs": {
+            "task_type": "action_with_prerequisite",
+            "required_info": [
+                "AirPods Pro (ELEC-004) status is 'processing' - not yet delivered",
+                "return policy requires item to be delivered before a return can be initiated",
+                "cannot initiate return - item not yet received",
+            ],
+            "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "requires_sequencing": True,
+            "expected_sequence": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "failure_mode": "Without catalog: no way to know AirPods are still processing. Without policy: might attempt return on undelivered item.",
+        },
+    },
+    {
+        "inputs": {"query": "Return my Uniqlo jacket", "user_email": "sam@example.com"},
+        "outputs": {
+            "task_type": "action_with_prerequisite",
+            "required_info": [
+                "Uniqlo Ultra Light Down Jacket (CLTH-004) delivered 14 days ago",
+                "outerwear return window is 30 days, unworn with tags - eligible",
+                "return initiated for CLTH-004, or eligibility confirmed and conditions communicated to user",
+            ],
+            "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
+            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "requires_sequencing": True,
+            "expected_sequence": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
+            "failure_mode": "Without catalog: no order_id or SKU for CLTH-004. Without policy: can't confirm 30-day window or eligibility conditions.",
+        },
+    },
+    {
+        "inputs": {"query": "I want to return my Sony headphones - please start the return", "user_email": "jordan@example.com"},
+        "outputs": {
+            "task_type": "action_with_prerequisite",
+            "required_info": [
+                "Sony WH-1000XM6 (ELEC-003) delivered 5 days ago - within 30-day electronics window",
+                "return initiated for ELEC-003, or eligibility confirmed and conditions communicated to user",
+            ],
+            "expected_agents": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
+            "cannot_complete_without": ["product_catalog_agent", "policy_and_sizing_agent"],
+            "requires_sequencing": True,
+            "expected_sequence": ["product_catalog_agent", "policy_and_sizing_agent", "cart_and_orders_agent"],
+            "failure_mode": "Without catalog: no order_id or SKU for ELEC-003. Without policy: can't confirm 30-day electronics window or eligibility conditions.",
         },
     },
 ]
@@ -1508,13 +1591,25 @@ EXAMPLES = [
 # ---------------------------------------------------------------------------
 
 def split_examples(examples: list[dict], train: float = 0.6, val: float = 0.2) -> tuple:
+    """Stratified split - each task_type is split proportionally across train/val/test."""
     random.seed(42)
-    shuffled = examples.copy()
-    random.shuffle(shuffled)
-    n = len(shuffled)
-    n_train = int(n * train)
-    n_val = int(n * val)
-    return shuffled[:n_train], shuffled[n_train:n_train + n_val], shuffled[n_train + n_val:]
+    from collections import defaultdict
+    by_type = defaultdict(list)
+    for ex in examples:
+        by_type[ex["outputs"]["task_type"]].append(ex)
+
+    train_out, val_out, test_out = [], [], []
+    for task_type, group in by_type.items():
+        shuffled = group.copy()
+        random.shuffle(shuffled)
+        n = len(shuffled)
+        n_train = max(1, int(n * train))
+        n_val = max(1, int(n * val))
+        train_out.extend(shuffled[:n_train])
+        val_out.extend(shuffled[n_train:n_train + n_val])
+        test_out.extend(shuffled[n_train + n_val:])
+
+    return train_out, val_out, test_out
 
 
 def write_jsonl(examples: list[dict], path: Path) -> None:
@@ -1525,17 +1620,18 @@ def write_jsonl(examples: list[dict], path: Path) -> None:
     print(f"  Wrote {len(examples)} examples → {path.name}")
 
 
-def upload_split(client: Client, examples: list[dict], split: str, replace: bool = False) -> None:
-    name = f"{DATASET_NAME}-{split}"
+def upload_split(client: Client, examples: list[dict], split: str, replace: bool = False, suffix: str = "") -> None:
+    base = f"{DATASET_NAME}{suffix}"
+    name = f"{base}-{split}"
     if client.has_dataset(dataset_name=name):
         if not replace:
-            print(f"  '{name}' already exists — skipping. Pass --replace to overwrite.")
+            print(f"  '{name}' already exists - skipping. Pass --replace to overwrite.")
             return
         client.delete_dataset(dataset_name=name)
         print(f"  Deleted existing '{name}'")
     dataset = client.create_dataset(
         dataset_name=name,
-        description=f"Shopping concierge routing eval — {split} split",
+        description=f"Shopping concierge routing eval - {split} split",
     )
     client.create_examples(
         inputs=[ex["inputs"] for ex in examples],
@@ -1548,6 +1644,7 @@ def upload_split(client: Client, examples: list[dict], split: str, replace: bool
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--replace", action="store_true", help="Delete and re-upload existing datasets")
+    parser.add_argument("--suffix", default="", help="Suffix appended to dataset name, e.g. '-v2' → shopping-concierge-routing-v2-train")
     args = parser.parse_args()
 
     train, val, test = split_examples(EXAMPLES)
@@ -1561,6 +1658,6 @@ if __name__ == "__main__":
     print("\nUploading to LangSmith...")
     client = Client()
     for split_name, split_data in [("train", train), ("val", val), ("test", test)]:
-        upload_split(client, split_data, split_name, replace=args.replace)
+        upload_split(client, split_data, split_name, replace=args.replace, suffix=args.suffix)
 
     print("\nDone.")
