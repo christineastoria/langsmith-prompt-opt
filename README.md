@@ -98,6 +98,11 @@ That did **not** happen here.
     Val   — Before  ████████████░░░░░░░░░  59%
     Val   — After   ███████████████████░░  91%   +55%
 
+ 
+
+---
+
+
 Validation gains **match or exceed training gains on every metric**, suggesting the improvements generalize.
 
 ---
@@ -133,6 +138,11 @@ We ran each version **6 times** to measure variance.
                    avg: 0.623
 
 Across all metrics, **baseline and optimized ranges do not overlap**.
+
+LangSmith view for repeated runs on train, val, and edge sets: 
+<img width="1322" height="682" alt="image" src="https://github.com/user-attachments/assets/857e6656-413e-4fc5-b561-e5caddda465d" />
+<img width="1321" height="693" alt="image" src="https://github.com/user-attachments/assets/b793ce25-1655-4bff-80cb-64747b1532d4" />
+<img width="1323" height="695" alt="image" src="https://github.com/user-attachments/assets/a4f6e2e2-9c85-4720-a006-eecdb2ab5ff1" />
 
 Even the worst optimized run beats the best baseline run on routing metrics.
 
