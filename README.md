@@ -33,6 +33,30 @@ Key takeaways:
 
 ---
 
+# How it works
+
+The core of this repo is a **LangGraph optimizer agent** that rewrites system prompts based on evaluation results.
+
+<img width="753" height="754" alt="image" src="https://github.com/user-attachments/assets/322b0be4-6219-46f8-95be-21d68c965790" />
+
+### Optimizer pipeline
+
+1. **pull_results** — fetches all runs from a LangSmith baseline eval experiment with full context: inputs, reference outputs, actual outputs, agents called, per-metric scores, and LLM judge reasoning
+
+2. **analyze** *(Sonnet)* — identifies failure patterns per metric across task types
+
+3. **reflect** *(Opus)* — filters analysis down to changes that generalize vs. changes that would overfit to training examples
+
+4. **generate** *(Opus)* — rewrites the prompt incorporating only the validated improvements
+
+5. **review** *(Opus)* — strips anything that hardcodes training-specific details
+
+6. **save** — writes `prompts/optimized.md`
+
+The **reflection node** is the key mechanism. Without it, the optimizer tends to patch individual examples rather than fix the underlying prompt logic.
+
+---
+
 # Results
 
 One automated prompt rewrite improved agent performance by roughly **~50% on average**.
@@ -145,30 +169,6 @@ LangSmith view for repeated runs on train, val, and edge sets:
 <img width="1323" height="695" alt="image" src="https://github.com/user-attachments/assets/a4f6e2e2-9c85-4720-a006-eecdb2ab5ff1" />
 
 Even the worst optimized run beats the best baseline run on routing metrics.
-
----
-
-# How it works
-
-The core of this repo is a **LangGraph optimizer agent** that rewrites system prompts based on evaluation results.
-
-<img width="753" height="754" alt="image" src="https://github.com/user-attachments/assets/322b0be4-6219-46f8-95be-21d68c965790" />
-
-### Optimizer pipeline
-
-1. **pull_results** — fetches all runs from a LangSmith baseline eval experiment with full context: inputs, reference outputs, actual outputs, agents called, per-metric scores, and LLM judge reasoning
-
-2. **analyze** *(Sonnet)* — identifies failure patterns per metric across task types
-
-3. **reflect** *(Opus)* — filters analysis down to changes that generalize vs. changes that would overfit to training examples
-
-4. **generate** *(Opus)* — rewrites the prompt incorporating only the validated improvements
-
-5. **review** *(Opus)* — strips anything that hardcodes training-specific details
-
-6. **save** — writes `prompts/optimized.md`
-
-The **reflection node** is the key mechanism. Without it, the optimizer tends to patch individual examples rather than fix the underlying prompt logic.
 
 ---
 
